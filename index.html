@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Energy Monitor</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #FFD194, #70E1F5);
+            animation: backgroundShift 10s infinite alternate;
+            overflow-y: auto; /* Allow vertical scrolling */
+        }
+
+        @keyframes backgroundShift {
+            0% { background: linear-gradient(135deg, #FFD194, #70E1F5); }
+            50% { background: linear-gradient(135deg, #FFDEE9, #B5FFFC); }
+            100% { background: linear-gradient(135deg, #FFD194, #70E1F5); }
+        }
+
+        .container {
+            background-color: rgba(255, 255, 255, 0.9);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            text-align: center;
+            width: 400px;
+            animation: fadeIn 1s ease-in-out;
+            transition: transform 0.3s;
+            border: 2px solid #28a745;
+            overflow: hidden; /* Hide overflow within the container */
+        }
+
+        .container:hover {
+            transform: translateY(-10px);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        h1 {
+            font-size: 2.5em;
+            color: #28a745;
+            margin-bottom: 15px;
+            background: linear-gradient(to right, #28a745, #4aff4a);
+            -webkit-background-clip: text;
+            color: transparent;
+        }
+
+        .data-item {
+            background-color: #f9f9f9;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+            margin-top: 20px;
+            transition: background-color 0.3s, box-shadow 0.3s;
+        }
+
+        .data-item:hover {
+            background-color: #e9f5ff;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+        }
+
+        .data-item span {
+            display: block;
+            font-size: 2.2em;
+            color: #444;
+        }
+
+        .data-item .label {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #28a745;
+            margin-bottom: 10px;
+        }
+
+        #moreParams {
+            display: none;
+            margin-top: 20px;
+        }
+
+        button {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            padding: 10px 15px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #218838;
+        }
+
+        canvas {
+            margin-top: 30px;
+            margin-bottom: 20px;
+            border: 1px solid #ccc;
+            background: #fff;
+            max-height: 200px;
+            width: 100%;
+            border-radius: 15px;
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                width: 90%;
+                padding: 20px;
+            }
+
+            h1 {
+                font-size: 2em;
+            }
+
+            .data-item span {
+                font-size: 1.5em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Energy Monitor</h1>
+        <div class="data-item">
+            <span class="label">Voltage</span>
+            <span id="voltage">Loading...</span>
+        </div>
+        <div class="data-item">
+            <span class="label">Current</span>
+            <span id="current">Loading...</span>
+        </div>
+        <div class="data-item">
+            <span class="label">Phase Angle</span>
+            <span id="phase-angle">Loading...</span>
+        </div>
+        <canvas id="waveformCanvas" width="400" height="200"></canvas>
+        
+        <button id="toggleButton">More Parameters</button>
+        <div id="moreParams">
+            <div class="data-item">
+                <span class="label">Power Factor</span>
+                <span id="power-factor">Loading...</span>
+            </div>
+            <div class="data-item">
+                <span class="label">Total Power</span>
+                <span id="total-power">Loading...</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const token = 'CHhwa6aYwupn1Rii0qlQPhNY5h8infXY';
+        const voltageUrl = `https://blynk.cloud/external/api/get?token=${token}&v2`;
+        const currentUrl = `https://blynk.cloud/external/api/get?token=${token}&v1`;
+        const phaseAngleUrl = `https://blynk.cloud/external/api/get?token=${token}&v3`;
+        const powerFactorUrl = `https://blynk.cloud/external/api/get?token=${token}&v4`;
+        const totalPowerUrl = `https://blynk.cloud/external/api/get?token=${token}&v0`;
+
+        let offset = 0; // Offset for wave movement
+        let voltage = 0, current = 0, phaseAngle = 0, powerFactor = 0, totalPower = 0;
+
+        function fetchData(url, elementId, label) {
+            return fetch(url)
+                .then(response => response.text())
+                .then(data => {
+                    document.getElementById(elementId).innerText = `${data} ${label}`;
+                    return parseFloat(data);
+                })
+                .catch(error => {
+                    console.error(`Error fetching ${label}:`, error);
+                    document.getElementById(elementId).innerText = `Error loading ${label}`;
+                    return null;
+                });
+        }
+
+        function drawWaveform() {
+            const canvas = document.getElementById('waveformCanvas');
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+            const voltageAmplitude = 150;  // Constant amplitude for voltage
+            const currentAmplitude = 70;   // Constant amplitude for current
+
+            ctx.clearRect(0, 0, width, height);
+            drawGrid(ctx, width, height);
+
+            // Draw Voltage Waveform
+            drawSinWave(ctx, width, height, voltageAmplitude, offset, '#6600CC');
+            // Draw Current Waveform with phase angle
+            drawSinWave(ctx, width, height, currentAmplitude, offset + phaseAngle, '#FF1A00');
+
+            offset += 2; // Increase offset to make movement smoother
+            if (offset > 360) offset = 0; // Reset offset to prevent overflow
+        }
+
+        function drawGrid(ctx, width, height) {
+            ctx.strokeStyle = '#e0e0e0';
+            ctx.lineWidth = 2;
+
+            for (let x = 0; x < width; x += 20) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, height);
+                ctx.stroke();
+            }
+
+            for (let y = 0; y < height; y += 20) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(width, y);
+                ctx.stroke();
+            }
+        }
+
+        function drawSinWave(ctx, width, height, amplitude, phase, color) {
+            ctx.beginPath();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 3;
+            const frequency = 0.05;
+
+            for (let x = 0; x < width; x++) {
+                const y = height / 2 + (amplitude / 2) * Math.sin(frequency * x + phase * Math.PI / 180);
+                ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+        }
+
+        function toggleMoreParams() {
+            const moreParamsDiv = document.getElementById('moreParams');
+            moreParamsDiv.style.display = moreParamsDiv.style.display === 'block' ? 'none' : 'block';
+            const button = document.getElementById('toggleButton');
+            button.innerText = moreParamsDiv.style.display === 'block' ? 'Less Parameters' : 'More Parameters';
+        }
+
+        document.getElementById('toggleButton').addEventListener('click', toggleMoreParams);
+
+        async function fetchDataAndDraw() {
+            voltage = await fetchData(voltageUrl, 'voltage', 'V');
+            current = await fetchData(currentUrl, 'current', 'A');
+            phaseAngle = await fetchData(phaseAngleUrl, 'phase-angle', '°');
+            powerFactor = await fetchData(powerFactorUrl, 'power-factor', '');
+            totalPower = await fetchData(totalPowerUrl, 'total-power', 'W');
+
+            drawWaveform();
+        }
+
+        setInterval(fetchDataAndDraw, 1000);
+        setInterval(drawWaveform, 50); // Update the waveform every 50ms
+    </script>
+</body>
+</html>
